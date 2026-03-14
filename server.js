@@ -82,3 +82,152 @@ app.post("/pay", async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+
+/*
+----------------------------------
+Audit Endpoint
+----------------------------------
+*/
+
+app.post("/audit", async (req, res) => {
+  let contractPath = null;
+
+  try {
+    const paymentHeader = req.headers["x-payment"];
+    const network = req.headers["x-network"] || "base-sepolia";
+
+    // Validate network
+    if (!SUPPORTED_NETWORKS.includes(network)) {
+      return res.status(400).json({ error: "Invalid network" });
+    }
+
+    // Check payment BEFORE saving file
+    if (!paymentHeader) {
+      // Need to process file first to calculate price
+      await new Promise((resolve, reject) => {
+        upload.single("contract")(req, res, (err) => {
+          if (err) reject(err);
+          else resolve();
+        });
+      });
+
+      if (!req.file) {
+        return res.status(400).json({ error: "No contract file uploaded" });
+      }
+
+      contractPath = req.file.path;
+      const content = fs.readFileSync(contractPath, "utf8");
+      const lineCount = content.split("\n").filter(l => l.trim() !== "").length;
+      const requiredAmount = calculatePrice(lineCount);
+
+      const paymentRequest = getPaymentRequest(requiredAmount, network);
+      
+      // Cleanup file before returning 402
+      if (contractPath && fs.existsSync(contractPath)) {
+        fs.unlinkSync(contractPath);
+        contractPath = null;
+      }
+
+      return res
+        .status(402)
+        .header("Payment-Required", build402Response(paymentRequest))
+        .json({ 
+          error: "Payment required", 
+          code: 402,
+          amount: requiredAmount, 
+          lineCount,
+          network 
+        });
+    }
+
+    // Only save file if payment header exists (for retry after payment)
+    await new Promise((resolve, reject) => {
+      upload.single("contract")(req, res, (err) => {
+        if (err) reject(err);
+        else resolve();
+      });
+    });
+
+    if (!req.file) {
+      return res.status(400).json({ error: "No contract file uploaded" });
+    }
+
+    contractPath = req.file.path;
+    const contractName = req.file.originalname;
+
+    // Calculate expected amount based on line count
+    const content = fs.readFileSync(contractPath, "utf8");
+    const lineCount = content.split("\n").filter(l => l.trim() !== "").length;
+    const requiredAmount = calculatePrice(lineCount);
+
+    // Decode and verify payment
+    const paymentData = JSON.parse(
+      Buffer.from(paymentHeader, "base64").toString("utf8")
+    );
+
+    const isPaid = await verifyPayment(paymentData, requiredAmount);
+
+    if (!isPaid) {
+      return res.status(402).json({ 
+        error: "Payment verification failed",
+        required: requiredAmount,
+        lineCount 
+      });
+    }
+
+    console.log(`Running audit on: ${contractPath} (network: ${network}, lines: ${lineCount})`);
+
+    // Step 1: Run audit
+    const report = await audit(contractPath);
+    console.log("Audit complete");
+
+    // Step 2: Upload to IPFS
+    console.log("Uploading to IPFS...");
+    const ipfsCid = await uploadAuditToIPFS(contractPath, report, paymentData);
+
+    // Step 3: Store on chain
+    console.log("Storing on chain...");
+    const chainResult = await storeAuditOnChain(
+      contractName,
+      report.securityScore,
+      ipfsCid,
+      network
+    );
+
+    res.json({
+      success: true,
+      network,
+      report,
+      ipfs: {
+        cid: ipfsCid,
+        url: `${process.env.PINATA_GATEWAY}/ipfs/${ipfsCid}`
+      },
+      blockchain: {
+        txHash: chainResult.txHash,
+        blockNumber: chainResult.blockNumber,
+        explorerUrl: chainResult.explorerUrl
+      },
+      stats: { 
+        lineCount, 
+        amountPaid: requiredAmount 
+      }
+    });
+
+  } catch (err) {
+    console.error("AUDIT ERROR:", err.message);
+    res.status(500).json({ error: err.message });
+  } finally {
+    // Cleanup uploaded file
+    if (contractPath && fs.existsSync(contractPath)) {
+      try {
+        fs.unlinkSync(contractPath);
+        console.log(`Successfully purged: ${contractPath}`);
+      } catch (cleanupErr) {
+        console.error("Cleanup failed:", cleanupErr.message);
+      }
+    }
+  }
+});
+
+app.listen(PORT, () => console.log(`🚀 Auditor running on http://localhost:${PORT}`));
