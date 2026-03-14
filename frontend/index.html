@@ -321,3 +321,18 @@
         // --- 6. SAVE ---
         doc.save(`${cleanFileName}_Security_Audit_${network}.pdf`);
     }
+
+    // Helper for professional page numbers and footer
+    function addFooter(doc, pageWidth, pageHeight, fileName) {
+        const pageCount = doc.internal.getNumberOfPages();
+        doc.setFontSize(8);
+        doc.setTextColor(148, 163, 184);
+        doc.text(`AI Auditor Registry ID: ${Math.random().toString(36).substr(2, 9).toUpperCase()}`, 20, pageHeight - 10);
+        doc.text(`${fileName} - Page ${doc.internal.getCurrentPageInfo().pageNumber}`, pageWidth - 60, pageHeight - 10);
+    }
+
+    document.getElementById("auditBtn").addEventListener("click", runAudit);
+    document.getElementById("downloadBtn").addEventListener("click", generatePDF);
+</script>
+</body>
+</html>
