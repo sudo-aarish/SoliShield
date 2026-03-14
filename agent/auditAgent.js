@@ -4,7 +4,11 @@ import parseReport from "./reportParser.js";
 import { analyzeWithGemini } from "./aiAnalyzer.js";
 
 export async function audit(contractPath) {
-    try{
+
+    console.log("Running Slither analysis...\n");
+
+    try {
+
         const slitherResult = await runSlither(contractPath);
         const findings = parseReport(slitherResult);
 
@@ -20,8 +24,9 @@ export async function audit(contractPath) {
             securityScore: score,
             aiAnalysis
         };
-    }
-    catch(error){
+
+    } catch (error) {
+
         console.error("Audit failed:", error);
 
         return {
@@ -30,5 +35,48 @@ export async function audit(contractPath) {
             securityScore: 0,
             aiAnalysis: "AI analysis unavailable."
         };
+
     }
+}
+
+async function main() {
+
+    const contractFile = process.argv[2];
+
+    if (!contractFile) {
+        console.log("Usage: node agent/auditAgent.js <contract.sol>");
+        return;
+    }
+
+    const contractPath = path.resolve(contractFile);
+
+    const report = await audit(contractPath);
+
+    console.log("\n===== SECURITY REPORT =====\n");
+
+    console.log("Security Score:", report.securityScore);
+
+    console.log("\nVulnerabilities Found:");
+
+    report.vulnerabilities.forEach((v, i) => {
+
+        console.log(`\n#${i + 1}`);
+        console.log("Type:", v.vulnerability);
+        console.log("Impact:", v.impact);
+        console.log("Confidence:", v.confidence);
+        console.log("Details:", v.description);
+
+    });
+
+    console.log("\n===== AI ANALYSIS =====\n");
+    console.log(report.aiAnalysis);
+
+}
+
+import { fileURLToPath } from "url";
+
+const currentFile = fileURLToPath(import.meta.url);
+
+if (process.argv[1] === currentFile) {
+  main();
 }
