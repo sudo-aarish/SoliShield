@@ -33,7 +33,7 @@ A Private Key with USDC (for the Payer/Sponsor wallet)
 2. Installation
 Bash
 # Clone the repository
-git clone https://github.com/your-username/solishield-ai.git
+git clone https://github.com/your-username/solishield.git
 
 # Navigate to the project directory
 cd solishield-ai
