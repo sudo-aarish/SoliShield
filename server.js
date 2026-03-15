@@ -253,7 +253,7 @@ app.post("/mint-badge", async (req, res) => {
     // Verify x402 payment
     const paymentHeader = req.headers["x-payment"];
     if (!paymentHeader) {
-      const paymentRequest = getPaymentRequest("avalanche-fuji");
+      const paymentRequest = getPaymentRequest("1.00", "avalanche-fuji");
       return res
         .status(402)
         .header("Payment-Required", build402Response(paymentRequest))

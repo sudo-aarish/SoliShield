@@ -24,28 +24,29 @@ const NETWORK_CONFIG = {
 
 export async function storeAuditOnChain(contractName, securityScore, ipfsCid, network) {
   try {
-    const config = NETWORK_CONFIG[network];
+    const NETWORK_CONFIG = {
+      "base-sepolia": {
+        rpc: process.env.BASE_SEPOLIA_RPC_URL,
+        contractAddress: process.env.AUDIT_REGISTRY_ADDRESS,
+        explorerUrl: "https://sepolia.basescan.org/tx"
+      },
+      "avalanche-fuji": {
+        rpc: process.env.FUJI_RPC_URL,
+        contractAddress: process.env.FUJI_REGISTRY_ADDRESS,
+        explorerUrl: "https://testnet.snowtrace.io/tx"
+      }
+    };
 
-    if (!config) {
-      throw new Error(`Unsupported network: ${network}`);
-    }
+    const config = NETWORK_CONFIG[network];
+    if (!config) throw new Error(`Unsupported network: ${network}`);
 
     const provider = new ethers.JsonRpcProvider(config.rpc);
     const wallet = new ethers.Wallet(process.env.DEPLOYER_PRIVATE_KEY, provider);
-    const contract = new ethers.Contract(
-      config.contractAddress,
-      ABI,
-      wallet
-    );
+    const contract = new ethers.Contract(config.contractAddress, ABI, wallet);
 
     console.log(`Storing audit on chain (${network})...`);
 
-    const tx = await contract.storeAudit(
-      contractName,
-      securityScore,
-      ipfsCid
-    );
-
+    const tx = await contract.storeAudit(contractName, securityScore, ipfsCid);
     const receipt = await tx.wait();
     console.log("Stored on chain, tx hash:", receipt.hash);
 
