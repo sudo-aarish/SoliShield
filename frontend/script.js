@@ -197,7 +197,11 @@ async function mintBadge() {
 
         const mintData = await mintRes.json();
         badgeStatus.textContent = `Badge minted! Token ID: #${mintData.badge.tokenId}`;
-        
+
+        // Hide mint button and wallet input after successful mint
+        document.getElementById("mintBadgeBtn").style.display = "none";
+        document.getElementById("walletInput").style.display = "none";
+
         const badgeBtn = document.createElement("button");
         badgeBtn.textContent = "View Badge Tx on Snowtrace";
         badgeBtn.onclick = () => window.open(mintData.badge.explorerUrl, "_blank");
